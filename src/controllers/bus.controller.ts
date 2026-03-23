@@ -196,9 +196,18 @@ export const searchBuses = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { source, destination, date } = req.query as {
-      source: string; destination: string; date: string;
-    };
+    const {
+      source,
+      destination,
+      date,
+      // ── Filter params ──────────────────
+      busTypes,       // e.g. "AC Sleeper,Non-AC Sleeper"
+      minPrice,       // e.g. "500"
+      maxPrice,       // e.g. "2000"
+      departureTime,  // e.g. "morning,evening"
+      amenities,      // e.g. "WiFi,Charging Point"
+      sortBy,         // e.g. "price_asc"
+    } = req.query as Record<string, string>;
 
     if (!source || !destination || !date) {
       res.status(400).json({
@@ -216,7 +225,7 @@ export const searchBuses = async (
       return;
     }
 
-    // ── Step 1: Check if real trips exist in DB ───────────────────
+    // ── Auto-generate trips if none exist for this route ──────────
     const existing = await query(
       `SELECT COUNT(*) FROM trips t
        WHERE LOWER(t.source)      = LOWER($1)
@@ -226,12 +235,83 @@ export const searchBuses = async (
       [source, destination, date]
     );
 
-    // ── Step 2: No trips found → generate them dynamically ────────
     if (parseInt(existing.rows[0].count) === 0) {
       await generateTripsForRoute(source, destination, date);
     }
 
-    // ── Step 3: Fetch trips with full details ─────────────────────
+    // ── Build dynamic WHERE clauses ───────────────────────────────
+    const conditions: string[] = [
+      `LOWER(t.source)      = LOWER($1)`,
+      `LOWER(t.destination) = LOWER($2)`,
+      `t.travel_date        = $3`,
+      `t.is_active          = true`,
+      `t.available_seats    > 0`,
+    ];
+
+    const params: unknown[] = [source, destination, date];
+    let paramIdx = 4;
+
+    // Filter: bus types (comma-separated)
+    if (busTypes) {
+      const types = busTypes.split(',').map(t => t.trim()).filter(Boolean);
+      if (types.length > 0) {
+        conditions.push(`b.bus_type = ANY($${paramIdx}::text[])`);
+        params.push(types);
+        paramIdx++;
+      }
+    }
+
+    // Filter: price range
+    if (minPrice) {
+      conditions.push(`t.price >= $${paramIdx}`);
+      params.push(parseFloat(minPrice));
+      paramIdx++;
+    }
+    if (maxPrice) {
+      conditions.push(`t.price <= $${paramIdx}`);
+      params.push(parseFloat(maxPrice));
+      paramIdx++;
+    }
+
+    // Filter: departure time slots
+    if (departureTime) {
+      const slots = departureTime.split(',').map(s => s.trim()).filter(Boolean);
+      if (slots.length > 0) {
+        const timeConditions: string[] = [];
+
+        if (slots.includes('early'))     timeConditions.push(`EXTRACT(HOUR FROM t.departure_time) < 6`);
+        if (slots.includes('morning'))   timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 6  AND EXTRACT(HOUR FROM t.departure_time) < 12)`);
+        if (slots.includes('afternoon')) timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 12 AND EXTRACT(HOUR FROM t.departure_time) < 17)`);
+        if (slots.includes('evening'))   timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 17 AND EXTRACT(HOUR FROM t.departure_time) < 21)`);
+        if (slots.includes('night'))     timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 21 OR  EXTRACT(HOUR FROM t.departure_time) < 6)`);
+
+        if (timeConditions.length > 0) {
+          conditions.push(`(${timeConditions.join(' OR ')})`);
+        }
+      }
+    }
+
+    // Filter: amenities (must have ALL requested amenities)
+    if (amenities) {
+      const amenityList = amenities.split(',').map(a => a.trim()).filter(Boolean);
+      if (amenityList.length > 0) {
+        conditions.push(`b.amenities @> $${paramIdx}::text[]`);
+        params.push(amenityList);
+        paramIdx++;
+      }
+    }
+
+    // ── Build ORDER BY ────────────────────────────────────────────
+    let orderBy = 't.departure_time ASC'; // default
+    switch (sortBy) {
+      case 'price_asc':  orderBy = 't.price ASC';            break;
+      case 'price_desc': orderBy = 't.price DESC';           break;
+      case 'rating':     orderBy = 't.rating DESC';          break;
+      case 'seats':      orderBy = 't.available_seats DESC'; break;
+      case 'departure':  orderBy = 't.departure_time ASC';   break;
+    }
+
+    // ── Execute main query ────────────────────────────────────────
     const result = await query(
       `SELECT
          t.id,
@@ -256,26 +336,17 @@ export const searchBuses = async (
          b.refund_policy
        FROM trips t
        JOIN buses b ON b.id = t.bus_id
-       WHERE LOWER(t.source)      = LOWER($1)
-         AND LOWER(t.destination) = LOWER($2)
-         AND t.travel_date        = $3
-         AND t.is_active          = true
-       ORDER BY t.departure_time ASC`,
-      [source, destination, date]
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY ${orderBy}`,
+      params
     );
 
-    // ── Step 4: Attach boarding & dropping points ─────────────────
+    // ── Attach boarding & dropping points ─────────────────────────
     const trips = await Promise.all(
       result.rows.map(async (trip) => {
         const [boarding, dropping] = await Promise.all([
-          query(
-            'SELECT * FROM boarding_points WHERE trip_id = $1 ORDER BY time',
-            [trip.id]
-          ),
-          query(
-            'SELECT * FROM dropping_points WHERE trip_id = $1 ORDER BY time',
-            [trip.id]
-          ),
+          query('SELECT * FROM boarding_points WHERE trip_id = $1 ORDER BY time', [trip.id]),
+          query('SELECT * FROM dropping_points WHERE trip_id = $1 ORDER BY time', [trip.id]),
         ]);
         return {
           ...trip,

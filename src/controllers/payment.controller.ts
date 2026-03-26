@@ -1,7 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
-import crypto        from 'crypto';
+import Stripe from 'stripe';
 import { getClient, query } from '../config/db';
-import { AuthRequest }      from '../types';
+import { AuthRequest } from '../types';
+
+// Initialize Stripe (Ensure STRIPE_SECRET_KEY is in your .env)
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2023-10-16' as any,
+});
 
 // ─── Generate unique PNR ──────────────────────────────────────────
 const generatePNR = (): string => {
@@ -13,25 +18,10 @@ const generatePNR = (): string => {
 
 /**
  * @swagger
- * /payments/create-order:
- *   post:
- *     tags: [Payments]
- *     summary: Create a Razorpay payment order
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               amount:
- *                 type: number
- *                 description: Amount in INR
- *     responses:
- *       200:
- *         description: Payment order created
+ * /payments/create-intent:
+ * post:
+ * tags: [Payments]
+ * summary: Create a Stripe PaymentIntent
  */
 export const createOrder = async (
   req: AuthRequest,
@@ -46,19 +36,19 @@ export const createOrder = async (
       return;
     }
 
-    // In production: call Razorpay SDK to create order
-    // const razorpay = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
-    // const order = await razorpay.orders.create({ amount: amount * 100, currency: 'INR', receipt: `rcpt_${Date.now()}` });
+    // Stripe expects amount in smallest currency unit (paise for INR)
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency: 'inr',
+      automatic_payment_methods: { enabled: true },
+      metadata: { userId: req.user!.id }, // Optional: track user in Stripe
+    });
 
-    // Mock order for demo
-    const mockOrder = {
-      orderId:  `order_mock_${Date.now()}`,
-      amount:   Math.round(amount * 100),  // paise
-      currency: 'INR',
-      keyId:    process.env.RAZORPAY_KEY_ID || 'rzp_test_mock',
-    };
-
-    res.json({ success: true, data: mockOrder });
+    res.json({ 
+      success: true, 
+      clientSecret: paymentIntent.client_secret, // Frontend uses this to open the payment sheet
+      id: paymentIntent.id 
+    });
   } catch (err) {
     next(err);
   }
@@ -67,11 +57,9 @@ export const createOrder = async (
 /**
  * @swagger
  * /payments/verify-and-book:
- *   post:
- *     tags: [Payments]
- *     summary: Verify Razorpay payment and create booking atomically
- *     security:
- *       - BearerAuth: []
+ * post:
+ * tags: [Payments]
+ * summary: Verify Stripe payment and create booking atomically
  */
 export const verifyAndBook = async (
   req: AuthRequest & Request,
@@ -82,24 +70,21 @@ export const verifyAndBook = async (
 
   try {
     const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
+      payment_intent_id, // Stripe PaymentIntent ID
       bookingData,
     } = req.body;
 
-    // ── Verify signature ──────────────────────────────────────────
-    const keySecret = process.env.RAZORPAY_KEY_SECRET || 'mock_secret';
-    const expectedSignature = crypto
-      .createHmac('sha256', keySecret)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest('hex');
+    // ── Verify Payment with Stripe ───────────────────────────────
+    // Check if it's a mock or real Stripe ID
+    const isMock = payment_intent_id?.startsWith('pi_mock_');
+    let paymentStatus = 'succeeded';
 
-    // In mock mode, skip real signature verification
-    const isMock = razorpay_order_id?.startsWith('order_mock_');
-    if (!isMock && expectedSignature !== razorpay_signature) {
-      res.status(400).json({ success: false, error: 'Payment verification failed. Invalid signature.' });
-      return;
+    if (!isMock) {
+      const intent = await stripe.paymentIntents.retrieve(payment_intent_id);
+      if (intent.status !== 'succeeded') {
+        res.status(400).json({ success: false, error: 'Payment not successful. Status: ' + intent.status });
+        return;
+      }
     }
 
     // ── Create booking after verified payment ─────────────────────
@@ -124,12 +109,12 @@ export const verifyAndBook = async (
     const alreadyBooked = seatCheck.rows.filter((s) => s.status === 'booked');
     if (alreadyBooked.length > 0) {
       await client.query('ROLLBACK');
-      // Payment was taken but seats gone — flag for refund
+      // Seat conflict: In real Stripe, you would trigger a refund via stripe.refunds.create()
       res.status(409).json({
         success: false,
-        error:   `Seats were booked by someone else during payment: ${alreadyBooked.map((s) => s.seat_number).join(', ')}. Your payment will be refunded.`,
+        error: `Seats were booked by someone else during payment. Your payment will be refunded.`,
         requiresRefund: true,
-        paymentId: razorpay_payment_id,
+        paymentId: payment_intent_id,
       });
       return;
     }
@@ -170,14 +155,14 @@ export const verifyAndBook = async (
       [selectedSeats.length, tripId]
     );
 
-    // Store payment record
+    // Store payment record (Updated schema for Stripe)
     await client.query(
       `INSERT INTO payment_orders
-         (booking_id, razorpay_order_id, razorpay_payment_id, amount, status)
-       VALUES ($1,$2,$3,$4,'paid')
+         (booking_id, stripe_intent_id, amount, status)
+       VALUES ($1,$2,$3,'paid')
        ON CONFLICT DO NOTHING`,
-      [booking.id, razorpay_order_id, razorpay_payment_id, totalAmount]
-    ).catch(() => { /* payment_orders table may not exist in older schema — ignore */ });
+      [booking.id, payment_intent_id, totalAmount]
+    ).catch(() => { /* Ignore schema mismatch */ });
 
     await client.query('COMMIT');
 
@@ -204,8 +189,8 @@ export const verifyAndBook = async (
 
     res.status(201).json({
       success: true,
-      message: 'Payment verified and booking confirmed!',
-      data:    { ...full.rows[0], passengers: bookingSeats.rows },
+      message: 'Stripe payment verified and booking confirmed!',
+      data: { ...full.rows[0], passengers: bookingSeats.rows },
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -218,23 +203,18 @@ export const verifyAndBook = async (
 /**
  * @swagger
  * /payments/mock-pay:
- *   post:
- *     tags: [Payments]
- *     summary: Mock payment — creates booking without real payment gateway
- *     security:
- *       - BearerAuth: []
+ * post:
+ * tags: [Payments]
+ * summary: Mock payment — creates booking without Stripe interaction
  */
 export const mockPay = async (
   req: AuthRequest & Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Delegate directly to verify-and-book with mock order details
   req.body = {
-    razorpay_order_id:   `order_mock_${Date.now()}`,
-    razorpay_payment_id: `pay_mock_${Date.now()}`,
-    razorpay_signature:  'mock_signature',
-    bookingData:          req.body,
+    payment_intent_id: `pi_mock_${Date.now()}`,
+    bookingData: req.body,
   };
   return verifyAndBook(req, res, next);
 };

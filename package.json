@@ -1,18 +1,17 @@
 {
   "name": "redbus-backend",
   "version": "1.0.0",
-  "description": "RedBus Clone REST API",
+  "description": "",
   "main": "dist/server.js",
   "scripts": {
-    "dev":    "nodemon --exec ts-node src/server.ts",
-    "build":  "tsc",
-    "start":  "node dist/server.js",
+    "dev": "nodemon --exec ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
     "migrate": "psql $DATABASE_URL -f migrations/001_init.sql"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
@@ -22,6 +21,7 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",
     "pg": "^8.20.0",
+    "stripe": "^20.4.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^13.0.0",

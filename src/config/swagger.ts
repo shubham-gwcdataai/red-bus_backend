@@ -16,7 +16,7 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       { url: 'http://localhost:5000/api', description: 'Development server' },
-      { url: 'https://api.redbus-clone.com/api', description: 'Production server' },
+      { url: 'https://red-bus-backend-tosi.onrender.com/api', description: 'Production server' },
     ],
     tags: [
       { name: 'Auth',     description: 'Authentication endpoints'   },

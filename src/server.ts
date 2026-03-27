@@ -1,22 +1,22 @@
-import express    from 'express';
-import cors       from 'cors';
-import helmet     from 'helmet';
-import morgan     from 'morgan';
-import dotenv     from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
 
-import { testConnection }           from './config/db';
-import { setupSwagger }             from './config/swagger';
-import { errorHandler, notFound }   from './middleware/error.middleware';
+import { testConnection, runMigrations } from './config/db';
+import { setupSwagger } from './config/swagger';
+import { errorHandler, notFound } from './middleware/error.middleware';
 
-import authRoutes    from './routes/auth.routes';
-import busRoutes     from './routes/bus.routes';
+import authRoutes from './routes/auth.routes';
+import busRoutes from './routes/bus.routes';
 import bookingRoutes from './routes/booking.routes';
-import adminRoutes   from './routes/admin.routes';
+import adminRoutes from './routes/admin.routes';
 import paymentRoutes from './routes/payment.routes';
 
 dotenv.config();
 
-const app  = express();
+const app = express();
 const PORT = process.env.PORT || 5000;
 app.use(helmet({ contentSecurityPolicy: false }));
 
@@ -35,8 +35,8 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) return callback(null, true);
     callback(new Error(`CORS: origin ${origin} not allowed`));
   },
-  credentials:    true,
-  methods:        ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
@@ -46,20 +46,20 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 app.get('/health', (_req, res) => {
   res.json({
-    status:    'OK',
+    status: 'OK',
     timestamp: new Date().toISOString(),
-    service:   'RedBus Clone API v2.0',
-    version:   '2.0.0',
+    service: 'RedBus Clone API v2.0',
+    version: '2.0.0',
   });
 });
 
 setupSwagger(app);
 
-app.use('/api/auth',     authRoutes);
-app.use('/api/buses',    busRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/buses', busRoutes);
 app.use('/api/bookings', bookingRoutes);
-app.use('/api/payments', paymentRoutes);   
-app.use('/api/admin',    adminRoutes);     
+app.use('/api/payments', paymentRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ── 404 & Error ───────────────────────────────────────────────────
 app.use(notFound);
@@ -67,6 +67,7 @@ app.use(errorHandler);
 
 // ── Start ─────────────────────────────────────────────────────────
 const startServer = async (): Promise<void> => {
+  await runMigrations();
   await testConnection();
 
   app.listen(PORT, () => {

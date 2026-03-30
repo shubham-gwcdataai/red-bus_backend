@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { query, getClient } from '../config/db';
 import { AuthRequest }      from '../types';
-
+ 
 /**
  * @swagger
  * /admin/stats:

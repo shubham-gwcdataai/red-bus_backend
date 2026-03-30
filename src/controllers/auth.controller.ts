@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import bcrypt   from 'bcryptjs';
-import jwt      from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { query } from '../config/db';
 import { SignupInput, LoginInput } from '../schemas/auth.schema';
 import { AuthRequest } from '../types';
@@ -63,7 +63,7 @@ export const signup = async (
       [name, email, phone || null, hashedPassword]
     );
 
-    const user  = result.rows[0];
+    const user = result.rows[0];
     const token = signToken(user.id, user.email, user.role);
 
     res.status(201).json({

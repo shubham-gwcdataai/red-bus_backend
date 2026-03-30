@@ -59,6 +59,15 @@ export const getSeatsByTrip = async (
     if (parseInt(existing.rows[0].count) === 0) {
       // Auto-generate seats if none exist
       await generateSeats(tripId);
+      await query(
+        `UPDATE trips
+         SET available_seats = (
+           SELECT COUNT(*) FROM seats
+           WHERE trip_id = $1 AND status = 'available'
+         )
+         WHERE id = $1`,
+        [tripId]
+      );
     }
 
     const seats = await query(

@@ -75,7 +75,7 @@ const startServer = async (): Promise<void> => {
     console.log(`Server:      http://localhost:${PORT}`);
     console.log(`Swagger UI:  http://localhost:${PORT}/api/docs`);
     console.log(`Health:      http://localhost:${PORT}/health`);
-    console.log(`Admin login: admin@redbus.com / Admin@123`);
+    // console.log(`Admin login: admin@redbus.com / Admin@123`);
     console.log(`Admin panel: http://localhost:3000/admin`);
     console.log('─────────────────────────────────────────────\n');
   });

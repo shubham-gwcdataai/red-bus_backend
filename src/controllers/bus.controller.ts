@@ -10,28 +10,28 @@ const CITY_PAIRS_DURATIONS: Record<string, { duration: string; baseHours: number
 // Calculate approximate duration based on distance
 const getDuration = (source: string, destination: string): string => {
   const knownRoutes: Record<string, string> = {
-    'bangalore-chennai':     '9h 30m',
-    'chennai-bangalore':     '9h 30m',
-    'mumbai-pune':           '3h 30m',
-    'pune-mumbai':           '3h 30m',
-    'delhi-jaipur':          '5h 30m',
-    'jaipur-delhi':          '5h 30m',
-    'hyderabad-bangalore':   '9h 30m',
-    'bangalore-hyderabad':   '9h 30m',
-    'mumbai-goa':            '9h 00m',
-    'goa-mumbai':            '9h 00m',
-    'delhi-agra':            '4h 00m',
-    'agra-delhi':            '4h 00m',
-    'bangalore-mysore':      '3h 00m',
-    'mysore-bangalore':      '3h 00m',
-    'chennai-coimbatore':    '7h 00m',
-    'coimbatore-chennai':    '7h 00m',
-    'kolkata-patna':         '8h 00m',
-    'patna-kolkata':         '8h 00m',
-    'mumbai-nashik':         '3h 30m',
-    'nashik-mumbai':         '3h 30m',
-    'hyderabad-vijayawada':  '5h 00m',
-    'vijayawada-hyderabad':  '5h 00m',
+    'bangalore-chennai': '9h 30m',
+    'chennai-bangalore': '9h 30m',
+    'mumbai-pune': '3h 30m',
+    'pune-mumbai': '3h 30m',
+    'delhi-jaipur': '5h 30m',
+    'jaipur-delhi': '5h 30m',
+    'hyderabad-bangalore': '9h 30m',
+    'bangalore-hyderabad': '9h 30m',
+    'mumbai-goa': '9h 00m',
+    'goa-mumbai': '9h 00m',
+    'delhi-agra': '4h 00m',
+    'agra-delhi': '4h 00m',
+    'bangalore-mysore': '3h 00m',
+    'mysore-bangalore': '3h 00m',
+    'chennai-coimbatore': '7h 00m',
+    'coimbatore-chennai': '7h 00m',
+    'kolkata-patna': '8h 00m',
+    'patna-kolkata': '8h 00m',
+    'mumbai-nashik': '3h 30m',
+    'nashik-mumbai': '3h 30m',
+    'hyderabad-vijayawada': '5h 00m',
+    'vijayawada-hyderabad': '5h 00m',
   };
   const key = `${source.toLowerCase()}-${destination.toLowerCase()}`;
   return knownRoutes[key] || '7h 00m';
@@ -39,13 +39,13 @@ const getDuration = (source: string, destination: string): string => {
 
 // Calculate arrival time from departure + duration
 const addDuration = (departureTime: string, duration: string): string => {
-  const [depH, depM]  = departureTime.split(':').map(Number);
-  const match         = duration.match(/(\d+)h\s*(\d+)?m?/);
-  const hours         = match ? parseInt(match[1]) : 7;
-  const mins          = match && match[2] ? parseInt(match[2]) : 0;
-  const totalMins     = depH * 60 + depM + hours * 60 + mins;
-  const arrH          = Math.floor(totalMins / 60) % 24;
-  const arrM          = totalMins % 60;
+  const [depH, depM] = departureTime.split(':').map(Number);
+  const match = duration.match(/(\d+)h\s*(\d+)?m?/);
+  const hours = match ? parseInt(match[1]) : 7;
+  const mins = match && match[2] ? parseInt(match[2]) : 0;
+  const totalMins = depH * 60 + depM + hours * 60 + mins;
+  const arrH = Math.floor(totalMins / 60) % 24;
+  const arrM = totalMins % 60;
   return `${String(arrH).padStart(2, '0')}:${String(arrM).padStart(2, '0')}`;
 };
 
@@ -151,11 +151,11 @@ const OPERATOR_TEMPLATES = [
 
 // Base price by bus type
 const BASE_PRICES: Record<string, number> = {
-  'AC Sleeper':      950,
+  'AC Sleeper': 950,
   'AC Semi-Sleeper': 750,
-  'Non-AC Sleeper':  550,
-  'AC Seater':       650,
-  'Non-AC Seater':   400,
+  'Non-AC Sleeper': 550,
+  'AC Seater': 650,
+  'Non-AC Seater': 400,
 };
 
 /**
@@ -200,13 +200,12 @@ export const searchBuses = async (
       source,
       destination,
       date,
-      // ── Filter params ──────────────────
-      busTypes,       // e.g. "AC Sleeper,Non-AC Sleeper"
-      minPrice,       // e.g. "500"
-      maxPrice,       // e.g. "2000"
-      departureTime,  // e.g. "morning,evening"
-      amenities,      // e.g. "WiFi,Charging Point"
-      sortBy,         // e.g. "price_asc"
+      busTypes,       
+      minPrice,       
+      maxPrice,       
+      departureTime,
+      amenities,    
+      sortBy,   
     } = req.query as Record<string, string>;
 
     if (!source || !destination || !date) {
@@ -279,11 +278,11 @@ export const searchBuses = async (
       if (slots.length > 0) {
         const timeConditions: string[] = [];
 
-        if (slots.includes('early'))     timeConditions.push(`EXTRACT(HOUR FROM t.departure_time) < 6`);
-        if (slots.includes('morning'))   timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 6  AND EXTRACT(HOUR FROM t.departure_time) < 12)`);
+        if (slots.includes('early')) timeConditions.push(`EXTRACT(HOUR FROM t.departure_time) < 6`);
+        if (slots.includes('morning')) timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 6  AND EXTRACT(HOUR FROM t.departure_time) < 12)`);
         if (slots.includes('afternoon')) timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 12 AND EXTRACT(HOUR FROM t.departure_time) < 17)`);
-        if (slots.includes('evening'))   timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 17 AND EXTRACT(HOUR FROM t.departure_time) < 21)`);
-        if (slots.includes('night'))     timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 21 OR  EXTRACT(HOUR FROM t.departure_time) < 6)`);
+        if (slots.includes('evening')) timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 17 AND EXTRACT(HOUR FROM t.departure_time) < 21)`);
+        if (slots.includes('night')) timeConditions.push(`(EXTRACT(HOUR FROM t.departure_time) >= 21 OR  EXTRACT(HOUR FROM t.departure_time) < 6)`);
 
         if (timeConditions.length > 0) {
           conditions.push(`(${timeConditions.join(' OR ')})`);
@@ -304,11 +303,11 @@ export const searchBuses = async (
     // ── Build ORDER BY ────────────────────────────────────────────
     let orderBy = 't.departure_time ASC'; // default
     switch (sortBy) {
-      case 'price_asc':  orderBy = 't.price ASC';            break;
-      case 'price_desc': orderBy = 't.price DESC';           break;
-      case 'rating':     orderBy = 't.rating DESC';          break;
-      case 'seats':      orderBy = 't.available_seats DESC'; break;
-      case 'departure':  orderBy = 't.departure_time ASC';   break;
+      case 'price_asc': orderBy = 't.price ASC'; break;
+      case 'price_desc': orderBy = 't.price DESC'; break;
+      case 'rating': orderBy = 't.rating DESC'; break;
+      case 'seats': orderBy = 't.available_seats DESC'; break;
+      case 'departure': orderBy = 't.departure_time ASC'; break;
     }
 
     // ── Execute main query ────────────────────────────────────────
@@ -358,8 +357,8 @@ export const searchBuses = async (
 
     res.json({
       success: true,
-      data:    trips,
-      total:   trips.length,
+      data: trips,
+      total: trips.length,
     });
   } catch (err) {
     next(err);
@@ -368,9 +367,9 @@ export const searchBuses = async (
 
 // ─── Dynamically generate trips for any route ────────────────────
 const generateTripsForRoute = async (
-  source:      string,
+  source: string,
   destination: string,
-  date:        string
+  date: string
 ): Promise<void> => {
   const client = await getClient();
 
@@ -411,12 +410,12 @@ const generateTripsForRoute = async (
       }
 
       // ── Calculate price & times ────────────────────────────────
-      const basePrice     = BASE_PRICES[template.busType] || 700;
-      const price         = Math.round(basePrice * template.priceMultiplier);
+      const basePrice = BASE_PRICES[template.busType] || 700;
+      const price = Math.round(basePrice * template.priceMultiplier);
       const originalPrice = template.priceMultiplier >= 1.0
         ? Math.round(price * 1.15)
         : null;
-      const arrivalTime   = addDuration(template.departureTime, duration);
+      const arrivalTime = addDuration(template.departureTime, duration);
       const availableSeats = Math.floor(Math.random() * 25) + 8; // 8–32
 
       // ── Insert trip ────────────────────────────────────────────

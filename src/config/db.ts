@@ -76,15 +76,15 @@ export const runMigrations = async (): Promise<void> => {
 };
 
 const ensureAdminUser = async (client: PoolClient): Promise<void> => {
-  // bcrypt hash of "Admin@123" with 10 rounds — generated with bcryptjs
-  const adminHash = '$2b$10$2FgXZCLvNncjnRP.bp2.2uyV6cosQJiIAWMWHUalLRX4GSVHbHvRC';
+  // bcrypt hash of "Admin@123" with 12 rounds — generated with bcryptjs
+  const adminHash = '$2b$12$NQNxeOnkWHekqpvgww.5oesBjx2k9YOQpkqq4rpIlkJmix57tm.bi';
 
   await client.query(`
     INSERT INTO users (name, email, phone, password, role)
     VALUES ('Admin User', 'admin@redbus.com', '9999999999', $1, 'admin')
     ON CONFLICT (email) DO UPDATE
-      SET role = 'admin'
-      WHERE users.role <> 'admin'
+      SET password = EXCLUDED.password,
+          role = 'admin'
   `, [adminHash]);
 
   console.log('✅ Admin user ensured (admin@redbus.com / Admin@123)');

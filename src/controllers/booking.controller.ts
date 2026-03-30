@@ -151,10 +151,10 @@ export const createBooking = async (
               bp.name AS boarding_name, bp.time AS boarding_time, bp.address AS boarding_address,
               dp.name AS dropping_name, dp.time AS dropping_time, dp.address AS dropping_address
        FROM bookings b
-       JOIN trips t    ON t.id  = b.trip_id
-       JOIN buses bu   ON bu.id = t.bus_id
-       JOIN boarding_points bp ON bp.id = b.boarding_point_id
-       JOIN dropping_points dp ON dp.id = b.dropping_point_id
+       JOIN trips t         ON t.id  = b.trip_id
+       JOIN buses bu        ON bu.id = t.bus_id
+       LEFT JOIN boarding_points bp ON bp.id = b.boarding_point_id
+       LEFT JOIN dropping_points dp ON dp.id = b.dropping_point_id
        WHERE b.id = $1`,
       [booking.id]
     );

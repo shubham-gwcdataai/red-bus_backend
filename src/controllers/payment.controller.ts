@@ -155,16 +155,17 @@ export const verifyAndBook = async (
       [selectedSeats.length, tripId]
     );
 
-    // Store payment record (Updated schema for Stripe)
-    await client.query(
+    await client.query('COMMIT');
+
+    // Store payment record outside the main transaction so a schema mismatch
+    // never aborts the booking commit. Uses razorpay_order_id (actual column).
+    await query(
       `INSERT INTO payment_orders
-         (booking_id, stripe_intent_id, amount, status)
+         (booking_id, razorpay_order_id, amount, status)
        VALUES ($1,$2,$3,'paid')
        ON CONFLICT DO NOTHING`,
       [booking.id, payment_intent_id, totalAmount]
-    ).catch(() => { /* Ignore schema mismatch */ });
-
-    await client.query('COMMIT');
+    ).catch(() => { /* Non-critical — booking is already confirmed */ });
 
     const full = await query(
       `SELECT b.*,

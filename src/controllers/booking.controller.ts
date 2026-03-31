@@ -205,8 +205,8 @@ export const getMyBookings = async (
        FROM bookings b
        JOIN trips t  ON t.id  = b.trip_id
        JOIN buses bu ON bu.id = t.bus_id
-       JOIN boarding_points bp ON bp.id = b.boarding_point_id
-       JOIN dropping_points dp ON dp.id = b.dropping_point_id
+       LEFT JOIN boarding_points bp ON bp.id = b.boarding_point_id
+       LEFT JOIN dropping_points dp ON dp.id = b.dropping_point_id
        WHERE b.user_id = $1
        ORDER BY b.booked_at DESC`,
       [req.user!.id]

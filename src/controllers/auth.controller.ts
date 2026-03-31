@@ -182,10 +182,12 @@ export const forgotPassword = async (
 ): Promise<void> => {
   try {
     const { email } = req.body;
+    console.log('Forgot password request for:', email);
 
     const userResult = await query('SELECT id FROM users WHERE email = $1', [email]);
     
     if (userResult.rows.length === 0) {
+      console.log('User not found, returning success anyway');
       res.status(200).json({ 
         success: true, 
         message: 'If the email exists, a reset link will be sent' 
@@ -194,6 +196,7 @@ export const forgotPassword = async (
     }
 
     const user = userResult.rows[0];
+    console.log('User found, creating token');
     const resetToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
@@ -201,15 +204,17 @@ export const forgotPassword = async (
       'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
       [user.id, resetToken, expiresAt]
     );
+    console.log('Token inserted into database');
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
     console.log('========================================');
-    console.log('PASSWORD RESET LINK:');
+    console.log('PASSWORD RESET LINK (DEV):');
     console.log(resetUrl);
     console.log('========================================');
 
     try {
       await sendPasswordResetEmail(email, resetToken);
+      console.log('Email sent successfully');
     } catch (emailError) {
       console.error('Email sending failed:', emailError);
       await query('DELETE FROM password_reset_tokens WHERE token = $1', [resetToken]);
@@ -223,7 +228,8 @@ export const forgotPassword = async (
       devResetUrl: resetUrl 
     });
   } catch (err) {
-    next(err);
+    console.error('Forgot password error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 

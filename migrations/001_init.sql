@@ -1,5 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 DROP TABLE IF EXISTS payment_orders CASCADE;
+DROP TABLE IF EXISTS password_reset_tokens CASCADE;
 DROP TABLE IF EXISTS booking_seats CASCADE;
 DROP TABLE IF EXISTS bookings CASCADE;
 DROP TABLE IF EXISTS seats CASCADE;
@@ -127,6 +128,16 @@ CREATE TABLE payment_orders (
   ),
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+-- PASSWORD RESET TOKENS
+CREATE TABLE password_reset_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR(255) NOT NULL UNIQUE,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_password_reset_user ON password_reset_tokens(user_id);
+CREATE INDEX idx_password_reset_token ON password_reset_tokens(token);
 -- INDEXES
 CREATE INDEX idx_trips_route_date ON trips(source, destination, travel_date);
 CREATE INDEX idx_trips_bus_id ON trips(bus_id);

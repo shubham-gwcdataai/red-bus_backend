@@ -200,11 +200,17 @@ export const forgotPassword = async (
     const resetToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    await query(
-      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
-      [user.id, resetToken, expiresAt]
-    );
-    console.log('Token inserted into database');
+    try {
+      await query(
+        'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+        [user.id, resetToken, expiresAt]
+      );
+      console.log('Token inserted into database');
+    } catch (dbError) {
+      console.error('Database insert error:', dbError);
+      res.status(500).json({ success: false, error: 'Failed to create reset token' });
+      return;
+    }
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
     console.log('========================================');
@@ -217,10 +223,12 @@ export const forgotPassword = async (
       console.log('Email sent successfully');
     } catch (emailError) {
       console.error('Email sending failed:', emailError);
-      await query('DELETE FROM password_reset_tokens WHERE token = $1', [resetToken]);
-      res.status(500).json({ success: false, error: 'Failed to send reset email', resetUrl });
-      return;
     }
+
+    console.log('========================================');
+    console.log('PASSWORD RESET LINK:');
+    console.log(resetUrl);
+    console.log('========================================');
 
     res.status(200).json({ 
       success: true, 
